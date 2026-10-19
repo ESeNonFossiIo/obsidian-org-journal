@@ -77,12 +77,18 @@ npm run dev      # rebuild on change
 
 ### Trying changes in Obsidian
 
-1. Symlink this checkout into the vault's plugin folder (once):
-   `ln -s ~/git/obsidian/org-journal <vault>/.obsidian/plugins/org-journal`
-2. `npm run dev` rebuilds `main.js` whenever you save a file in `src/`.
+1. Tell the build where your vault's plugin folder is (once). Put the path in a
+   gitignored `.deploy-target` file, or set `OBSIDIAN_PLUGIN_DIR`:
+   `echo "~/vault/.obsidian/plugins/org-journal" > .deploy-target`
+2. `npm run build` (or `npm run dev`, which rebuilds whenever you save a file in
+   `src/`) now also copies `main.js`, `manifest.json` and `styles.css` there.
 3. Obsidian only reloads plugin code on startup or when the plugin is toggled:
    Settings → Community plugins → switch Org Journal off and on (or restart).
 4. Open the developer console (`Ctrl+Shift+I`) to see errors.
+
+Don't symlink the checkout into the vault: Syncthing (and some other sync tools)
+don't follow symlinks, so the plugin would never reach your phone. The deploy
+target must be a real folder holding only the three built files.
 
 Put logic that doesn't need Obsidian or CodeMirror in `src/core.js` and cover it
 in `test/core.test.js`; keep the Obsidian-facing code in the other modules thin.

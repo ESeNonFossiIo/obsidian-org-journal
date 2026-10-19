@@ -28,8 +28,7 @@ import { DEFAULTS } from "./settings-defaults.js";
 export default class OrgJournalPlugin extends Plugin {
   /** Apply the configured journal name to ribbon tooltips and open view tabs. */
   applyNames() {
-    const n = this.settings.journalName;
-    const tip = { tree: `${n} tree`, calendar: `${n} calendar`, entry: `New ${n.toLowerCase()} entry` };
+    const tip = this.ribbonTitles();
     for (const [k, el] of Object.entries(this.ribbon || {})) {
       el.setAttr("aria-label", tip[k]);
       el.setAttr("data-tooltip-position", "right");
@@ -37,6 +36,12 @@ export default class OrgJournalPlugin extends Plugin {
     for (const type of [CAL_VIEW, TREE_VIEW]) {
       for (const leaf of this.app.workspace.getLeavesOfType(type)) if (leaf.updateHeader) leaf.updateHeader();
     }
+  }
+
+  /** Ribbon labels from the journal name. They are also given at creation: mobile builds its menu from them. */
+  ribbonTitles() {
+    const n = this.settings.journalName;
+    return { tree: `${n} tree`, calendar: `${n} calendar`, entry: `New ${n.toLowerCase()} entry` };
   }
 
   /** True if the orgmode-cm6 plugin (which provides the .org editor view) is enabled. */
@@ -49,10 +54,11 @@ export default class OrgJournalPlugin extends Plugin {
     await this.loadSettings();
     this.registerView(CAL_VIEW, (leaf) => new CalendarView(leaf, this));
     this.registerView(TREE_VIEW, (leaf) => new TreeView(leaf, this));
+    const title = this.ribbonTitles();
     this.ribbon = {
-      tree: this.addRibbonIcon("folder-tree", "", () => this.openTree()),
-      calendar: this.addRibbonIcon("calendar", "", () => this.openCalendar()),
-      entry: this.addRibbonIcon("pencil", "", () => this.newEntry()),
+      tree: this.addRibbonIcon("folder-tree", title.tree, () => this.openTree()),
+      calendar: this.addRibbonIcon("calendar", title.calendar, () => this.openCalendar()),
+      entry: this.addRibbonIcon("pencil", title.entry, () => this.newEntry()),
     };
     this.applyNames();
     this.addCommand({ id: "tree", name: "Open tree", callback: () => this.openTree() });
@@ -185,24 +191,31 @@ export default class OrgJournalPlugin extends Plugin {
     }, this.settings.journalName).open();
   }
 
-  async openCalendar() {
+  /**
+   * Show a view of the given type in a sidebar, creating it if needed. Falls back to a
+   * normal tab when the workspace has no sidebar leaf to give (seen on some mobile layouts).
+   * @param {string} type view type id
+   * @param {"left"|"right"} side which sidebar
+   * @returns {Promise<void>}
+   */
+  async openInSidebar(type, side) {
     const ws = this.app.workspace;
-    let leaf = ws.getLeavesOfType(CAL_VIEW)[0];
+    let leaf = ws.getLeavesOfType(type)[0];
     if (!leaf) {
-      leaf = ws.getRightLeaf(false);
-      await leaf.setViewState({ type: CAL_VIEW, active: true });
+      leaf = (side === "left" ? ws.getLeftLeaf(false) : ws.getRightLeaf(false)) || ws.getLeaf("tab");
+      await leaf.setViewState({ type, active: true });
     }
     await ws.revealLeaf(leaf);
   }
 
+  /** Show the calendar view in the right sidebar, creating it if needed. */
+  async openCalendar() {
+    await this.openInSidebar(CAL_VIEW, "right");
+  }
+
+  /** Show the tree view in the left sidebar, creating it if needed. */
   async openTree() {
-    const ws = this.app.workspace;
-    let leaf = ws.getLeavesOfType(TREE_VIEW)[0];
-    if (!leaf) {
-      leaf = ws.getLeftLeaf(false);
-      await leaf.setViewState({ type: TREE_VIEW, active: true });
-    }
-    await ws.revealLeaf(leaf);
+    await this.openInSidebar(TREE_VIEW, "left");
   }
 
   /** Text of the journal file (from the open editor if any), or null if missing. */
