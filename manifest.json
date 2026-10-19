@@ -1,0 +1,10 @@
+{
+  "id": "org-journal",
+  "name": "Org Journal",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Date-tree journal in a single Org file: new entry, calendar, folder tree, tag search and a clean journal look. Requires the Orgmode (cm6) plugin.",
+  "author": "ESeNonFossiIo",
+  "isDesktopOnly": false,
+  "authorUrl": "https://github.com/ESeNonFossiIo"
+}
