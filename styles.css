@@ -1,0 +1,214 @@
+.org-journal-sub {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.org-journal-tags {
+  color: var(--text-accent);
+}
+.org-journal-cal-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.org-journal-cal-title {
+  flex: 1;
+  text-align: center;
+  font-weight: var(--font-semibold);
+}
+.org-journal-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+.org-journal-cal-dow {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.org-journal-cal-day {
+  position: relative;
+  padding: 6px 0 10px;
+  border-radius: var(--radius-s);
+}
+.org-journal-cal-day.has-entry {
+  cursor: pointer;
+}
+.org-journal-cal-day.has-entry:hover {
+  background: var(--background-modifier-hover);
+}
+.org-journal-cal-day.is-today {
+  color: var(--text-accent);
+  font-weight: var(--font-bold);
+  outline: 1px solid var(--text-accent);
+}
+.org-journal-cal-dot {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+}
+
+/* ---------------------------------------------------------------- journal look
+   Everything below is scoped to .org-journal-styled, which the plugin puts on
+   the journal file's view only. Selectors are more specific than orgmode-cm6's
+   own colours so they win regardless of stylesheet order. */
+
+/* Reading comfort: centred column, relaxed leading. */
+.org-journal-styled .cm-content {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: var(--size-4-6) var(--size-4-4);
+}
+.org-journal-styled .cm-line {
+  line-height: 1.65;
+}
+
+/* #+TITLE / #+STARTUP: out of the way. */
+.org-journal-styled .oj-meta,
+.org-journal-styled .oj-meta * {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* Heading hierarchy: year > month > day > entry. */
+.org-journal-styled .oj-year {
+  margin-top: var(--size-4-8);
+  padding-bottom: var(--size-4-1);
+  border-bottom: 2px solid var(--background-modifier-border);
+}
+.org-journal-styled .oj-year,
+.org-journal-styled .oj-year * {
+  font-size: 1.9em;
+  font-weight: var(--font-bold);
+  color: var(--text-normal);
+}
+.org-journal-styled .oj-month {
+  margin-top: var(--size-4-6);
+}
+.org-journal-styled .oj-month,
+.org-journal-styled .oj-month * {
+  font-size: 1.35em;
+  font-weight: var(--font-semibold);
+  color: var(--text-accent);
+}
+.org-journal-styled .oj-day {
+  margin-top: var(--size-4-4);
+  padding-left: var(--size-4-3);
+  border-left: 3px solid var(--interactive-accent);
+}
+.org-journal-styled .oj-day,
+.org-journal-styled .oj-day * {
+  font-size: 1.1em;
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+.org-journal-styled .oj-entry {
+  margin-top: var(--size-4-3);
+  padding-left: var(--size-4-6);
+}
+.org-journal-styled .oj-entry,
+.org-journal-styled .oj-entry .org-heading,
+.org-journal-styled .oj-entry .org-heading * {
+  font-size: 1em;
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+
+/* Entry text, indented under its heading. */
+.org-journal-styled .oj-body,
+.org-journal-styled .oj-body * {
+  color: var(--text-normal);
+}
+.org-journal-styled .oj-body {
+  padding-left: var(--size-4-6);
+}
+
+/* Time badge. */
+.org-journal-styled .oj-time {
+  display: inline-block;
+  margin-right: 0.35em;
+  padding: 0 0.5em;
+  border-radius: var(--radius-s);
+  background: var(--background-modifier-hover);
+  color: var(--text-muted) !important;
+  font-family: var(--font-monospace);
+  font-size: 0.85em !important;
+  font-weight: var(--font-normal) !important;
+}
+
+/* Tag pills (colons and alignment padding are hidden by the plugin). */
+.org-journal-styled .oj-spacer {
+  display: inline-block;
+  width: 0.8em;
+}
+.org-journal-styled .oj-tag,
+.org-journal-styled .oj-tag * {
+  color: var(--text-on-accent) !important;
+  font-weight: var(--font-normal) !important;
+}
+.org-journal-styled .oj-tag {
+  display: inline-block;
+  margin-right: 0.3em;
+  padding: 0 0.6em;
+  border-radius: 999px;
+  background: var(--interactive-accent);
+  font-size: 0.8em;
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------------ journal tree */
+.org-journal-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+.org-journal-tree-row:hover {
+  background: var(--background-modifier-hover);
+}
+.org-journal-tree-children {
+  margin-left: 11px;
+  padding-left: 6px;
+  border-left: 1px solid var(--background-modifier-border);
+}
+.org-journal-tree-chevron,
+.org-journal-tree-icon {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+.org-journal-tree-chevron .svg-icon,
+.org-journal-tree-icon .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+.org-journal-tree-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.org-journal-tree-count {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+.org-journal-tree-row.is-entry .org-journal-tree-label {
+  color: var(--text-muted);
+}
+.org-journal-tree-tag {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+}
+.org-journal-tree-empty {
+  color: var(--text-muted);
+  padding: var(--size-4-2);
+}
