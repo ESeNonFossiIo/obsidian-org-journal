@@ -1,5 +1,7 @@
 # Org Journal
 
+[![CI](https://github.com/ESeNonFossiIo/obsidian-org-journal/actions/workflows/ci.yml/badge.svg)](https://github.com/ESeNonFossiIo/obsidian-org-journal/actions/workflows/ci.yml)
+
 Obsidian plugin for a date-tree journal kept in a single Org file. Works
 alongside [orgmode-cm6](https://github.com/bbazard/obsidian-orgmode-cm6),
 which provides the `.org` editor view.
