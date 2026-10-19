@@ -1,3 +1,9 @@
+// The "journal look", installed into the orgmode-cm6 editor of the journal file:
+//  - stylePlugin: view plugin adding line/mark/replace decorations (heading levels,
+//    entry bodies, time badge, tag pills, hidden stars); CSS is in styles.css
+//  - preambleField: state field hiding the #+ lines before the first heading
+// Both are appended to the editor with installStyle() and only act inside a
+// `.org-journal-styled` container, which main.js sets on the journal's view.
 import { ViewPlugin, Decoration, WidgetType, EditorView } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import { lineKind, entryHeadingParts, starsLength, firstHeadingLine } from "./core.js";
@@ -5,8 +11,16 @@ import { lineKind, entryHeadingParts, starsLength, firstHeadingLine } from "./co
 /** Dispatch this to make the style plugin rebuild its decorations. */
 export const refreshStyle = StateEffect.define();
 
+/** Replaces the alignment padding before the tags with a small fixed gap. */
 class Spacer extends WidgetType {
+  /**
+   * All spacers are identical, so CodeMirror can reuse the DOM.
+   * @returns {boolean}
+   */
   eq() { return true; }
+  /**
+   * @returns {HTMLElement} the gap element (styled by `.oj-spacer`)
+   */
   toDOM() {
     const s = document.createElement("span");
     s.className = "oj-spacer";
@@ -14,14 +28,17 @@ class Spacer extends WidgetType {
   }
 }
 
+/**
+ * Line decoration: puts a class (plus the shared `oj-line`) on the whole `.cm-line`.
+ * @param {string} cls
+ * @returns {import("@codemirror/view").Decoration}
+ */
 const line = (cls) => Decoration.line({ class: `oj-line ${cls}` });
 
 /**
- * Decorations that restyle the journal: a class per heading level, entry
- * bodies, dimmed #+ lines, the time as a badge and tags as pills (with the
- * alignment padding and colons hidden unless the cursor is on that line).
- * The leading stars are hidden on every heading except the one being edited.
- * Only active inside a `.org-journal-styled` container.
+ * `buildDecorations` made safe: log and show nothing rather than crash the plugin.
+ * @param {import("@codemirror/view").EditorView} view
+ * @returns {import("@codemirror/view").DecorationSet}
  */
 function build(view) {
   try {
@@ -33,6 +50,16 @@ function build(view) {
   }
 }
 
+/**
+ * Decorations that restyle the journal: a class per heading level, entry bodies, dimmed
+ * #+ lines, the time as a badge and tags as pills (with the alignment padding and colons
+ * hidden unless the cursor is on that line). The leading stars are hidden on every heading
+ * except the one being edited. Only active inside a `.org-journal-styled` container.
+ * Rebuilt on every document or selection change, which is cheap for journal-sized files.
+ * @param {{state: import("@codemirror/state").EditorState, dom: HTMLElement}} view the
+ *   EditorView (only `state` and `dom` are used)
+ * @returns {import("@codemirror/view").DecorationSet}
+ */
 export function buildDecorations(view) {
   if (!view.dom.closest(".org-journal-styled")) return Decoration.none;
   const { doc, selection } = view.state;
@@ -63,8 +90,14 @@ export function buildDecorations(view) {
   return Decoration.set(out, true);
 }
 
+/** The view plugin that holds the decorations from `build` and rebuilds them on change. */
 export const stylePlugin = ViewPlugin.fromClass(class {
+  /** @param {import("@codemirror/view").EditorView} view */
   constructor(view) { this.decorations = build(view); }
+  /**
+   * Rebuild when the document or selection changed, or when `refreshStyle` was dispatched.
+   * @param {import("@codemirror/view").ViewUpdate} u
+   */
   update(u) {
     if (u.docChanged || u.selectionSet || u.transactions.some((t) => t.effects.some((e) => e.is(refreshStyle)))) {
       this.decorations = build(u.view);
@@ -75,6 +108,11 @@ export const stylePlugin = ViewPlugin.fromClass(class {
 /** Turn hiding of the preamble (the #+ lines before the first heading) on or off. */
 export const setPreamble = StateEffect.define();
 
+/**
+ * One block-replace decoration over everything before the first heading.
+ * @param {import("@codemirror/state").Text} doc
+ * @returns {import("@codemirror/view").DecorationSet} empty if there is no preamble
+ */
 function preambleDeco(doc) {
   let end = 0;
   for (let n = 1; n <= doc.lines; n++) {
@@ -83,6 +121,7 @@ function preambleDeco(doc) {
   return end > 0 ? Decoration.set([Decoration.replace({ block: true }).range(0, end)]) : Decoration.none;
 }
 
+/** State field `{on, deco}`; `setPreamble` switches it, and it recomputes on edits. */
 export const preambleField = StateField.define({
   create: () => ({ on: false, deco: Decoration.none }),
   update(v, tr) {
@@ -94,14 +133,23 @@ export const preambleField = StateField.define({
   provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
 });
 
-/** Add the journal look to an editor if it doesn't have it yet. Returns true if added. */
+/**
+ * Add the journal look to an editor if it is not there yet.
+ * @param {import("@codemirror/view").EditorView} cm
+ * @returns {boolean} true if it was added now
+ */
 export function installStyle(cm) {
   if (cm.plugin(stylePlugin)) return false;
   cm.dispatch({ effects: StateEffect.appendConfig.of([stylePlugin, preambleField]) });
   return true;
 }
 
-/** Hide/show the preamble, moving the cursor out of it when hiding. */
+/**
+ * Hide or show the preamble, moving the cursor out of it when hiding.
+ * @param {import("@codemirror/view").EditorView} cm
+ * @param {boolean} on true to hide it
+ * @returns {void}
+ */
 export function applyPreamble(cm, on) {
   if (!cm.state.field(preambleField, false)) return;
   if (cm.state.field(preambleField).on === on) return;

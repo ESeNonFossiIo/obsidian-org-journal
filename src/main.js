@@ -9,9 +9,20 @@
  *   **** 23:02 Title                                         :tag1:tag2:
  *   Free-form text...
  *
- * Works alongside the `orgmode-cm6' plugin: if the journal is open in its
- * view, edits go through that view's CodeMirror so nothing is clobbered by
- * a background file write. No Node APIs, so it runs on mobile too.
+ * Works alongside the `orgmode-cm6' plugin, which provides the `.org` editor
+ * view (view type "orgmode", whose `codeMirror` property is the CodeMirror
+ * EditorView). If the journal is open in that view, edits go through its
+ * CodeMirror so nothing is clobbered by a background file write; otherwise the
+ * file is changed through the vault. No Node APIs, so it runs on mobile too.
+ *
+ * This file is the plugin entry point: commands, ribbon icons, settings and the
+ * glue between Obsidian and the pure logic in core.js. Other modules:
+ *   core.js      date-tree parsing/editing, no Obsidian imports (unit-tested)
+ *   style.js     "journal look" CodeMirror decorations + preamble hiding
+ *   hide.js      "hide other entries" CodeMirror field
+ *   calendar.js  sidebar month view     tree.js  sidebar year/month/day tree
+ *   modals.js    new-entry dialog and search pickers
+ *   settings.js  settings tab (defaults in settings-defaults.js)
  */
 import { Plugin, Notice, TFile, normalizePath } from "obsidian";
 import { unfoldAll } from "@codemirror/language";
@@ -25,8 +36,21 @@ import { installStyle, refreshStyle, applyPreamble } from "./style.js";
 import { OrgJournalSettings } from "./settings.js";
 import { DEFAULTS } from "./settings-defaults.js";
 
+/**
+ * What `openJournal()` returns and most methods below take as `ctx`.
+ * @typedef {Object} JournalContext
+ * @property {import("obsidian").TFile} file the journal file
+ * @property {import("@codemirror/view").EditorView} [cm] orgmode-cm6's editor, if the
+ *   file is open in that view
+ */
+
+/** @typedef {import("./core.js").Entry} Entry */
+
 export default class OrgJournalPlugin extends Plugin {
-  /** Apply the configured journal name to ribbon tooltips and open view tabs. */
+  /**
+   * Apply the configured journal name to the ribbon tooltips and open view tabs.
+   * @returns {void}
+   */
   applyNames() {
     const tip = this.ribbonTitles();
     for (const [k, el] of Object.entries(this.ribbon || {})) {
@@ -38,18 +62,30 @@ export default class OrgJournalPlugin extends Plugin {
     }
   }
 
-  /** Ribbon labels from the journal name. They are also given at creation: mobile builds its menu from them. */
+  /**
+   * Ribbon labels built from the journal name. They are also given when the icons are
+   * created: mobile builds its ribbon menu from them.
+   * @returns {{tree: string, calendar: string, entry: string}}
+   */
   ribbonTitles() {
     const n = this.settings.journalName;
     return { tree: `${n} tree`, calendar: `${n} calendar`, entry: `New ${n.toLowerCase()} entry` };
   }
 
-  /** True if the orgmode-cm6 plugin (which provides the .org editor view) is enabled. */
+  /**
+   * Whether the orgmode-cm6 plugin (which provides the .org editor view) is enabled.
+   * Assumes yes if Obsidian's internal plugin list is not available.
+   * @returns {boolean}
+   */
   hasOrgmode() {
     const p = this.app.plugins;
     return !p || !p.enabledPlugins || p.enabledPlugins.has("orgmode-cm6");
   }
 
+  /**
+   * Register views, ribbon icons, commands, the settings tab and the workspace listeners.
+   * @returns {Promise<void>}
+   */
   async onload() {
     await this.loadSettings();
     this.registerView(CAL_VIEW, (leaf) => new CalendarView(leaf, this));
@@ -81,17 +117,31 @@ export default class OrgJournalPlugin extends Plugin {
     });
   }
 
+  /**
+   * Load saved settings over the defaults.
+   * @returns {Promise<void>}
+   */
   async loadSettings() { this.settings = Object.assign({}, DEFAULTS, await this.loadData()); }
+  /**
+   * Persist `this.settings` to the plugin's data.json.
+   * @returns {Promise<void>}
+   */
   saveSettings() { return this.saveData(this.settings); }
 
+  /**
+   * Take the journal look off open views; Obsidian removes the commands and views itself.
+   * @returns {void}
+   */
   onunload() {
     this.styleLeaves(true);
   }
 
   /**
-   * Turn the journal look on for open journal views (and off for the rest).
-   * orgmode-cm6 rebuilds the editor state when it loads a file, which drops
-   * our extension, so this re-installs it whenever it is missing.
+   * Turn the journal look on for open journal views and off for the rest. orgmode-cm6
+   * rebuilds the editor state when it loads a file, which drops our extension, so this
+   * re-installs it whenever it is missing.
+   * @param {boolean} [unload=false] remove the look from every view (used on unload)
+   * @returns {void}
    */
   styleLeaves(unload = false) {
     const path = normalizePath(this.settings.file);
@@ -107,7 +157,11 @@ export default class OrgJournalPlugin extends Plugin {
     }
   }
 
-  /** Open the journal in a leaf; returns {file, cm} (cm = orgmode-cm6's EditorView, if any). */
+  /**
+   * Open the journal in a leaf, reusing one that already shows it.
+   * @returns {Promise<?JournalContext>} null (after a notice) if orgmode-cm6 is missing or
+   *   the journal file does not exist
+   */
   async openJournal() {
     if (!this.hasOrgmode()) {
       new Notice("Org Journal needs the Orgmode (cm6) community plugin to open .org files.");
@@ -125,11 +179,25 @@ export default class OrgJournalPlugin extends Plugin {
     return { file, cm: leaf.view && leaf.view.codeMirror };
   }
 
+  /**
+   * Current text of the journal: from the live editor if there is one, else from the vault.
+   * @param {JournalContext} ctx
+   * @returns {Promise<string>}
+   */
   async readText(ctx) {
     return ctx.cm ? ctx.cm.state.doc.toString() : this.app.vault.read(ctx.file);
   }
 
-  /** Replace the document (minimal diff) and put the cursor on `line`. */
+  /**
+   * Replace the document with `newText` and put the cursor on a line. In the editor only
+   * the changed middle part is dispatched (the common prefix and suffix are kept), so folds,
+   * scroll position and undo history survive; without an editor it writes through
+   * `vault.process`.
+   * @param {JournalContext} ctx
+   * @param {string} newText the full new document
+   * @param {number} line 0-based line for the cursor
+   * @returns {Promise<void>}
+   */
   async applyText(ctx, newText, line) {
     const cm = ctx.cm;
     if (!cm) { await this.app.vault.process(ctx.file, () => newText); return; }
@@ -148,7 +216,12 @@ export default class OrgJournalPlugin extends Plugin {
     cm.focus();
   }
 
-  /** Hide everything except the path to the entry at `line` (orgmode-cm6 view only). */
+  /**
+   * Hide everything except the path to an entry (orgmode-cm6 view only).
+   * @param {JournalContext} ctx
+   * @param {number} line 0-based line of the entry heading to keep visible
+   * @returns {void}
+   */
   focusEntry(ctx, line) {
     const cm = ctx.cm;
     if (!cm) return;
@@ -162,6 +235,10 @@ export default class OrgJournalPlugin extends Plugin {
     cm.dispatch({ scrollIntoView: true });
   }
 
+  /**
+   * "Show all entries": clear the hiding done by `focusEntry`.
+   * @returns {void}
+   */
   showAll() {
     const leaf = this.app.workspace.getLeavesOfType("orgmode")[0];
     const cm = leaf && leaf.view.codeMirror;
@@ -169,6 +246,12 @@ export default class OrgJournalPlugin extends Plugin {
     cm.dispatch({ effects: [hideEffect(cm).of([])] });
   }
 
+  /**
+   * Move the cursor to a line and scroll so that line is at the top of the pane.
+   * @param {JournalContext} ctx
+   * @param {number} line 0-based line (clamped to the document)
+   * @returns {void}
+   */
   goTo(ctx, line) {
     if (!ctx.cm) return;
     const doc = ctx.cm.state.doc;
@@ -181,6 +264,10 @@ export default class OrgJournalPlugin extends Plugin {
     ctx.cm.focus();
   }
 
+  /**
+   * "New entry": ask for a title and tags, add the entry for now, then optionally hide the rest.
+   * @returns {void}
+   */
   newEntry() {
     new EntryModal(this.app, async (title, tags) => {
       const ctx = await this.openJournal();
@@ -208,17 +295,26 @@ export default class OrgJournalPlugin extends Plugin {
     await ws.revealLeaf(leaf);
   }
 
-  /** Show the calendar view in the right sidebar, creating it if needed. */
+  /**
+   * Show the calendar view in the right sidebar, creating it if needed.
+   * @returns {Promise<void>}
+   */
   async openCalendar() {
     await this.openInSidebar(CAL_VIEW, "right");
   }
 
-  /** Show the tree view in the left sidebar, creating it if needed. */
+  /**
+   * Show the tree view in the left sidebar, creating it if needed.
+   * @returns {Promise<void>}
+   */
   async openTree() {
     await this.openInSidebar(TREE_VIEW, "left");
   }
 
-  /** Text of the journal file (from the open editor if any), or null if missing. */
+  /**
+   * Text of the journal file, from the open editor if there is one (and it has loaded).
+   * @returns {Promise<?string>} null if the file does not exist
+   */
   async journalText() {
     const file = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.file));
     if (!(file instanceof TFile)) return null;
@@ -230,17 +326,30 @@ export default class OrgJournalPlugin extends Plugin {
     return live || this.app.vault.cachedRead(file);
   }
 
+  /**
+   * Open the journal and jump to a line (used by the tree and the calendar).
+   * @param {number} line 0-based
+   * @returns {Promise<void>}
+   */
   async goToLine(line) {
     const ctx = await this.openJournal();
     if (ctx) this.goTo(ctx, line);
   }
 
-  /** Day -> entry count, from the open editor if the journal is open, else from disk. */
+  /**
+   * Entries per day, for the calendar.
+   * @returns {Promise<Map<string, number>>} "YYYY-MM-DD" -> entries; empty if there is no file
+   */
   async journalDayCounts() {
     const text = await this.journalText();
     return text === null ? new Map() : dayCounts(text);
   }
 
+  /**
+   * Open the journal and jump to a day's heading, or say there is none.
+   * @param {Date} date
+   * @returns {Promise<void>}
+   */
   async goToDay(date) {
     const ctx = await this.openJournal();
     if (!ctx) return;
@@ -249,6 +358,10 @@ export default class OrgJournalPlugin extends Plugin {
     else this.goTo(ctx, line);
   }
 
+  /**
+   * "Open today": jump to today's day heading, or say there is none yet.
+   * @returns {Promise<void>}
+   */
   async openToday() {
     const ctx = await this.openJournal();
     if (!ctx) return;
@@ -257,12 +370,22 @@ export default class OrgJournalPlugin extends Plugin {
     else this.goTo(ctx, line);
   }
 
+  /**
+   * Open the journal and parse its entries.
+   * @returns {Promise<?{ctx: JournalContext, list: Entry[]}>} list is newest first; null if the
+   *   journal could not be opened
+   */
   async entries() {
     const ctx = await this.openJournal();
     if (!ctx) return null;
     return { ctx, list: parseEntries(await this.readText(ctx)) };
   }
 
+  /**
+   * "Search entries": fuzzy picker over all entries; choosing one jumps to it.
+   * @param {(list: Entry[]) => Entry[]} [entries] maps the full list to the subset to offer
+   * @returns {Promise<void>}
+   */
   async search(entries) {
     const r = await this.entries();
     if (!r) return;
@@ -270,6 +393,10 @@ export default class OrgJournalPlugin extends Plugin {
       (e) => this.goTo(r.ctx, e.line)).open();
   }
 
+  /**
+   * "Filter entries by tag": pick a tag (with counts), then pick among its entries.
+   * @returns {Promise<void>}
+   */
   async filterByTag() {
     const r = await this.entries();
     if (!r) return;

@@ -1,3 +1,4 @@
+// Unit tests for src/core.js (pure journal logic). Run with `npm test`.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { addEntry, findDay, parseEntries, parseTags, hiddenBlocks, monthGrid, dayCounts, lineOffset } from "../src/core.js";

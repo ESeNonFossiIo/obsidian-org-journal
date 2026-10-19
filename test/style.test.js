@@ -1,3 +1,5 @@
+// Tests for the journal look (src/style.js) against real CodeMirror state, using a
+// minimal fake view. Set JOURNAL=/path/to/journal.org to also run it on a real file.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

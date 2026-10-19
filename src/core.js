@@ -1,15 +1,81 @@
 // Pure logic for the date-tree journal: no Obsidian or CodeMirror imports,
-// so it can be unit-tested with plain node.
+// so it can be unit-tested with plain node (`npm test`).
+//
+// The journal is one Org file laid out as a date tree, the same shape the
+// Emacs `file+olp+datetree' capture template produces:
+//
+//   #+TITLE: Journal                       <- preamble (before the first heading)
+//   * 2026                                 <- level 1: year
+//   ** 2026-10 October                     <- level 2: month
+//   *** 2026-10-19 Monday                  <- level 3: day
+//   **** 23:02 Title              :a:b:    <- level 4: entry (time, title, tags)
+//   Free-form text...
+//
+// All line numbers in this module are 0-based. Functions take and return plain
+// strings/arrays; none of them touch the editor or the vault.
 
+/**
+ * @typedef {Object} Entry
+ * @property {number} line 0-based line of the entry heading
+ * @property {string} day "YYYY-MM-DD" of the day it is under
+ * @property {string} heading "HH:MM title", without the tags
+ * @property {string[]} tags
+ * @property {string[]} body the non-empty text lines up to the next heading
+ */
+
+/**
+ * @typedef {Object} TreeEntry
+ * @property {string} label "HH:MM title"
+ * @property {string[]} tags
+ * @property {number} line 0-based line of the entry heading
+ */
+
+/**
+ * @typedef {Object} TreeDay
+ * @property {string} key stable id, e.g. "2026/2026-10/2026-10-19"
+ * @property {string} label e.g. "19 Monday"
+ * @property {number} line 0-based line of the day heading
+ * @property {TreeEntry[]} entries
+ */
+
+/**
+ * @typedef {Object} TreeMonth
+ * @property {string} key e.g. "2026/2026-10"
+ * @property {string} label e.g. "October"
+ * @property {number} line
+ * @property {TreeDay[]} days
+ */
+
+/**
+ * @typedef {Object} TreeYear
+ * @property {string} key e.g. "2026"
+ * @property {string} label e.g. "2026"
+ * @property {number} line
+ * @property {TreeMonth[]} months
+ */
+
+/** English month names, used in month headings ("2026-10 October"). */
 export const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
   "August", "September", "October", "November", "December"];
+/** English weekday names (Sunday first, like Date#getDay), used in day headings. */
 export const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
   "Saturday"];
+/** Heading level of a journal entry (`****`). */
 export const ENTRY_LEVEL = 4;
 
+/**
+ * Zero-pad a number to two digits.
+ * @param {number} n
+ * @returns {string} e.g. 7 -> "07"
+ */
 export const pad = (n) => String(n).padStart(2, "0");
 
-
+/**
+ * The year/month/day headings that contain a date, outermost first.
+ * @param {Date} d
+ * @returns {Array<[number, string, string]>} three [level, key, text] triples: `key`
+ *   is what sorts and matches ("2026-10"), `text` the full heading text ("2026-10 October").
+ */
 export function dayKeys(d) {
   const y = String(d.getFullYear());
   const m = `${y}-${pad(d.getMonth() + 1)}`;
@@ -21,7 +87,14 @@ export function dayKeys(d) {
   ];
 }
 
-/** Index of the first line after the subtree of the heading at `idx`. */
+/**
+ * Index of the first line after a heading's subtree, i.e. the next heading of the
+ * same or a higher level (or the end of the file).
+ * @param {string[]} lines the file, one string per line
+ * @param {number} idx line of the heading
+ * @param {number} level the heading's level (number of stars)
+ * @returns {number}
+ */
 export function subtreeEnd(lines, idx, level) {
   for (let i = idx + 1; i < lines.length; i++) {
     const m = /^(\*+) /.exec(lines[i]);
@@ -31,8 +104,15 @@ export function subtreeEnd(lines, idx, level) {
 }
 
 /**
- * Find the heading `key` at `level` inside lines[from, to), creating it in
- * sorted position if missing. Mutates `lines`. Returns {idx, end}.
+ * Find the heading `key` at `level` inside lines[from, to), creating it in sorted
+ * position if missing. Mutates `lines`.
+ * @param {string[]} lines the file, one string per line (modified in place)
+ * @param {number} from first line of the search range
+ * @param {number} to line after the search range
+ * @param {number} level heading level (number of stars)
+ * @param {string} key sortable id that identifies the heading ("2026-10")
+ * @param {string} text full heading text used when creating it ("2026-10 October")
+ * @returns {{idx: number, end: number}} line of the heading and the line after its subtree
  */
 export function findOrCreate(lines, from, to, level, key, text) {
   const re = new RegExp(`^\\*{${level}} (\\S+)`);
@@ -58,6 +138,15 @@ export function findOrCreate(lines, from, to, level, key, text) {
   return { idx, end: subtreeEnd(lines, idx, level) };
 }
 
+/**
+ * Build an entry heading line: `**** HH:MM title`, plus `:a:b:` right-aligned when
+ * there are tags (at least two spaces are always kept before the tags).
+ * @param {string} time "HH:MM"
+ * @param {string} title may be empty
+ * @param {string[]} tags
+ * @param {number} column where the tags end (Org's default is 77)
+ * @returns {string}
+ */
 export function formatHeading(time, title, tags, column) {
   let h = "*".repeat(ENTRY_LEVEL) + " " + time + (title ? " " + title : "");
   if (tags.length) {
@@ -68,8 +157,15 @@ export function formatHeading(time, title, tags, column) {
 }
 
 /**
- * Add an entry for `date` to `text`. Returns {text, line} where `line` is
- * the (0-based) empty body line to put the cursor on.
+ * Add an entry for a date to the journal text, creating any missing year, month
+ * and day heading in sorted position.
+ * @param {string} text the whole journal
+ * @param {Date} date decides the headings and the HH:MM of the entry
+ * @param {string} title may be empty
+ * @param {string[]} tags
+ * @param {number} column where the tags end
+ * @returns {{text: string, line: number}} the new text and the 0-based empty body
+ *   line to put the cursor on
  */
 export function addEntry(text, date, title, tags, column) {
   const lines = text.split("\n");
@@ -94,9 +190,11 @@ export function addEntry(text, date, title, tags, column) {
 }
 
 /**
- * Blocks of lines to hide so that only the path to the entry at `line`
- * (its year, month and day headings) and the entry itself stay visible.
- * Returns [first, last] 0-based inclusive line ranges.
+ * Blocks of lines to hide so that only the path to an entry (its year, month and
+ * day headings) and the entry itself stay visible.
+ * @param {string} text the whole journal
+ * @param {number} line 0-based line of the entry heading to keep
+ * @returns {Array<[number, number]>} [first, last] 0-based inclusive line ranges
  */
 export function hiddenBlocks(text, line) {
   const lines = text.split("\n");
@@ -119,14 +217,23 @@ export function hiddenBlocks(text, line) {
   return out;
 }
 
-/** Line of today's day heading, or -1. */
+/**
+ * Line of the day heading for a date (`*** 2026-10-19 Monday`).
+ * @param {string} text the whole journal
+ * @param {Date} date
+ * @returns {number} 0-based line, or -1 if there is no heading for that day
+ */
 export function findDay(text, date) {
   const key = dayKeys(date)[2][1];
   const re = new RegExp(`^\\*{3} ${key}(\\s|$)`);
   return text.split("\n").findIndex((l) => re.test(l));
 }
 
-/** Split "title   :a:b:" into {title, tags}. */
+/**
+ * Split "title   :a:b:" into a title and its tags.
+ * @param {string} rest heading text after the stars
+ * @returns {{title: string, tags: string[]}}
+ */
 export function splitHeadingTags(rest) {
   const tm = /^(.*?)\s+(:[^\s:]+(?::[^\s:]+)*:)\s*$/.exec(rest);
   return {
@@ -135,7 +242,11 @@ export function splitHeadingTags(rest) {
   };
 }
 
-/** All entries (level-4 headings under a day heading), newest first. */
+/**
+ * All entries (level-4 headings under a day heading), newest first.
+ * @param {string} text the whole journal
+ * @returns {Entry[]}
+ */
 export function parseEntries(text) {
   const out = [];
   let day = null, cur = null;
@@ -161,11 +272,23 @@ export function parseEntries(text) {
   return out.reverse();
 }
 
+/**
+ * Parse user-typed tags ("work, #idea  home") into a clean list: split on spaces,
+ * commas and colons, drop any `#`.
+ * @param {string} s
+ * @returns {string[]} e.g. ["work", "idea", "home"]
+ */
 export function parseTags(s) {
   return s.split(/[\s,:]+/).map((t) => t.replace(/^#/, "")).filter(Boolean);
 }
 
-/** Weeks of a month as arrays of 7 day numbers (null = outside the month). */
+/**
+ * Weeks of a month, for drawing a calendar.
+ * @param {number} year
+ * @param {number} month 0-based (0 = January)
+ * @param {boolean} mondayFirst weeks start on Monday (else Sunday)
+ * @returns {Array<Array<number|null>>} rows of 7 day numbers; null = outside the month
+ */
 export function monthGrid(year, month, mondayFirst) {
   const first = new Date(year, month, 1).getDay();
   const lead = mondayFirst ? (first + 6) % 7 : first;
@@ -178,7 +301,12 @@ export function monthGrid(year, month, mondayFirst) {
   return weeks;
 }
 
-/** Map "YYYY-MM-DD" -> number of entries, for every day heading in the file. */
+/**
+ * Number of entries per day, for every day heading in the file (days with a
+ * heading but no entry count 0).
+ * @param {string} text the whole journal
+ * @returns {Map<string, number>} "YYYY-MM-DD" -> entries
+ */
 export function dayCounts(text) {
   const counts = new Map();
   for (const l of text.split("\n")) {
@@ -189,13 +317,23 @@ export function dayCounts(text) {
   return counts;
 }
 
+/**
+ * Character offset of the start of a line.
+ * @param {string} text
+ * @param {number} line 0-based line number
+ * @returns {number}
+ */
 export function lineOffset(text, line) {
   let off = 0;
   for (let i = 0; i < line; i++) off = text.indexOf("\n", off) + 1;
   return off;
 }
 
-/** Classify a journal line for styling: year/month/day/entry heading, #+ meta line, or text. */
+/**
+ * Classify a line for styling.
+ * @param {string} text one line
+ * @returns {"year"|"month"|"day"|"entry"|"meta"|"text"} heading level, `#+` line, or anything else
+ */
 export function lineKind(text) {
   const m = /^(\*+) /.exec(text);
   if (m && m[1].length <= ENTRY_LEVEL) return ["year", "month", "day", "entry"][m[1].length - 1];
@@ -205,8 +343,12 @@ export function lineKind(text) {
 
 /**
  * Character offsets (within the line) of the pieces of an entry heading
- * `**** HH:MM title   :tag1:tag2:`. Returns null if it isn't one.
- * `pad` is the whitespace before the tags, `colons` the ':' characters.
+ * `**** HH:MM title   :tag1:tag2:`.
+ * @param {string} text one line
+ * @returns {?{time: {from: number, to: number}, pad: ?{from: number, to: number},
+ *   tags: Array<{from: number, to: number}>, colons: number[]}} null if the line is not an
+ *   entry heading; `pad` is the whitespace before the tags (null without tags), `tags`
+ *   the tag names without colons, `colons` the offset of each ':'.
  */
 export function entryHeadingParts(text) {
   if (!/^\*{4} \d{2}:\d{2}(\s|$)/.test(text)) return null;
@@ -223,9 +365,11 @@ export function entryHeadingParts(text) {
 }
 
 /**
- * The journal as a tree, in file (chronological) order: years > months > days > entries.
- * Every node has `line` (0-based) and a short `label`; `key` is a stable id
- * like "2026/2026-10/2026-10-19" for remembering expanded folders.
+ * The journal as a tree in file (chronological) order. Every node has `line`
+ * (0-based) and a short `label`; `key` is a stable id like "2026/2026-10/2026-10-19"
+ * for remembering which folders are expanded.
+ * @param {string} text the whole journal
+ * @returns {TreeYear[]}
  */
 export function buildTree(text) {
   const years = [];
@@ -254,13 +398,21 @@ export function buildTree(text) {
   return years;
 }
 
-/** Length of the leading "**** " (stars + space) of a heading line, 0 if it isn't one. */
+/**
+ * Length of the leading "**** " (stars plus space) of a heading line.
+ * @param {string} text one line
+ * @returns {number} 0 if the line is not a heading
+ */
 export function starsLength(text) {
   const m = /^\*+ /.exec(text);
   return m ? m[0].length : 0;
 }
 
-/** Index of the first heading line (the preamble is everything before it); -1 if none. */
+/**
+ * Where the preamble (everything before the first heading) ends.
+ * @param {string} text the whole journal
+ * @returns {number} 0-based line of the first heading, or -1 if there is none
+ */
 export function firstHeadingLine(text) {
   return text.split("\n").findIndex((l) => /^\*+ /.test(l));
 }

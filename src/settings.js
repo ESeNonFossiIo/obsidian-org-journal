@@ -1,8 +1,19 @@
+// The plugin's settings tab. Every change is saved at once; settings that affect
+// open views (name, journal look, preamble) also refresh them.
 import { PluginSettingTab, Setting } from "obsidian";
 import { DEFAULTS } from "./settings-defaults.js";
 
+/** Settings tab; reads and writes `plugin.settings` (defaults in settings-defaults.js). */
 export class OrgJournalSettings extends PluginSettingTab {
+  /**
+   * @param {import("obsidian").App} app
+   * @param {import("./main.js").default} plugin whose `settings` this tab edits
+   */
   constructor(app, plugin) { super(app, plugin); this.plugin = plugin; }
+  /**
+   * Build the settings form. Each control saves immediately.
+   * @returns {void}
+   */
   display() {
     const { containerEl } = this;
     containerEl.empty();
