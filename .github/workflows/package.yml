@@ -1,0 +1,40 @@
+name: Package
+
+# Build the release package (the three files Obsidian loads, in a zip) on every push
+# and pull request, so a build can be downloaded from the run's Artifacts and tried by
+# hand before tagging. The tag-triggered Release workflow publishes the real release.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+      - name: Create package
+        id: pkg
+        run: |
+          version=$(jq -r .version manifest.json)
+          mkdir -p dist/org-journal
+          cp main.js manifest.json styles.css dist/org-journal/
+          (cd dist && zip -r "org-journal-${version}.zip" org-journal)
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: org-journal-${{ steps.pkg.outputs.version }}
+          path: dist/org-journal-*.zip
+          if-no-files-found: error
