@@ -21,6 +21,24 @@ File layout (same as the Emacs `file+olp+datetree` capture template):
 Free-form text...
 ```
 
+## Screenshots
+
+Journal look and calendar:
+
+![Journal look with the calendar](screenshots/calendar.png)
+
+Tree view:
+
+![Tree view](screenshots/tree.png)
+
+New entry:
+
+![New entry dialog](screenshots/new-entry.png)
+
+Journal look, close up:
+
+![Journal look](screenshots/journal.png)
+
 ## Commands
 
 Run from the command palette (`Ctrl+P`, prefix "Org Journal: "). Assign hotkeys
