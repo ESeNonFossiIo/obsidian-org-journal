@@ -48,9 +48,10 @@ in Settings → Hotkeys.
 
 | Command | What it does | Ribbon |
 | :--- | :--- | :--- |
-| **New entry** | Asks for an optional title and tags, then adds `**** HH:MM title  :tags:` under today's year/month/day headings (created in sorted position if missing) and puts the cursor on the body line. Optionally hides everything except today's path and the new entry. | pencil |
-| **Show all entries** | Undoes the hiding done by *New entry*. Reopening the file does the same. | |
+| **New entry** | Asks for an optional title and tags, then adds `**** HH:MM title  :tags:` under today's year/month/day headings (created in sorted position if missing) and puts the cursor on the body line. Optionally hides everything except today's path and the new entry; a "Show all entries" button then floats over the view. | pencil |
+| **Show all entries** | Undoes the hiding done by *New entry* (same as the floating button). | |
 | **Open today** | Jumps to today's day heading (or says there is none yet). | |
+| **Open tags** | Sidebar tag filter: every tag with its count; click tags to select them and the entries that have all of them are listed below. Click an entry to jump to it. | tags |
 | **Open calendar** | Sidebar month view. Days with entries have a dot (hover for the count); click one to jump to it. | calendar |
 | **Open tree** | Left-sidebar tree like the file explorer: years and months are folders (with entry counts), then days, then entries with their tags. Click a folder to expand/collapse, click an entry to jump to it, double-click a day to jump to its heading. Chronological (oldest first); the current year and month start open. | folder-tree |
 | **Search entries** | Fuzzy search over date, title, tags and body text; Enter jumps to the entry. | |

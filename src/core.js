@@ -273,6 +273,27 @@ export function parseEntries(text) {
 }
 
 /**
+ * Tags used by the entries, with how many entries use each.
+ * @param {Entry[]} entries
+ * @returns {Array<[string, number]>} `[tag, count]`, most used first, then alphabetical
+ */
+export function tagCounts(entries) {
+  const counts = new Map();
+  for (const e of entries) for (const t of e.tags) counts.set(t, (counts.get(t) || 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+/**
+ * The entries that have all the given tags.
+ * @param {Entry[]} entries
+ * @param {string[]} tags no tags selects every entry
+ * @returns {Entry[]} in the original order
+ */
+export function filterByTags(entries, tags) {
+  return entries.filter((e) => tags.every((t) => e.tags.includes(t)));
+}
+
+/**
  * Parse user-typed tags ("work, #idea  home") into a clean list: split on spaces,
  * commas and colons, drop any `#`.
  * @param {string} s

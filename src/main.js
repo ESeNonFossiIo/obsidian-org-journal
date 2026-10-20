@@ -32,6 +32,7 @@ import { CalendarView, CAL_VIEW } from "./calendar.js";
 import { EntryModal, EntrySearchModal, TagModal } from "./modals.js";
 import { hideEffect } from "./hide.js";
 import { TreeView, TREE_VIEW } from "./tree.js";
+import { TagsView, TAGS_VIEW } from "./tags.js";
 import { installStyle, refreshStyle, applyPreamble } from "./style.js";
 import { OrgJournalSettings } from "./settings.js";
 import { DEFAULTS } from "./settings-defaults.js";
@@ -60,7 +61,7 @@ export default class OrgJournalPlugin extends Plugin {
       el.setAttr("aria-label", tip[k]);
       el.setAttr("data-tooltip-position", "right");
     }
-    for (const type of [CAL_VIEW, TREE_VIEW]) {
+    for (const type of [CAL_VIEW, TREE_VIEW, TAGS_VIEW]) {
       for (const leaf of this.app.workspace.getLeavesOfType(type)) if (leaf.updateHeader) leaf.updateHeader();
     }
   }
@@ -68,11 +69,11 @@ export default class OrgJournalPlugin extends Plugin {
   /**
    * Ribbon labels built from the journal name. They are also given when the icons are
    * created: mobile builds its ribbon menu from them.
-   * @returns {{tree: string, calendar: string, entry: string}}
+   * @returns {{tree: string, calendar: string, tags: string, entry: string}}
    */
   ribbonTitles() {
     const n = this.settings.journalName;
-    return { tree: `${n} tree`, calendar: `${n} calendar`, entry: `New ${n.toLowerCase()} entry` };
+    return { tree: `${n} tree`, calendar: `${n} calendar`, tags: `${n} tags`, entry: `New ${n.toLowerCase()} entry` };
   }
 
   /**
@@ -93,15 +94,18 @@ export default class OrgJournalPlugin extends Plugin {
     await this.loadSettings();
     this.registerView(CAL_VIEW, (leaf) => new CalendarView(leaf, this));
     this.registerView(TREE_VIEW, (leaf) => new TreeView(leaf, this));
+    this.registerView(TAGS_VIEW, (leaf) => new TagsView(leaf, this));
     const title = this.ribbonTitles();
     this.ribbon = {
       tree: this.addRibbonIcon("folder-tree", title.tree, () => this.openTree()),
       calendar: this.addRibbonIcon("calendar", title.calendar, () => this.openCalendar()),
+      tags: this.addRibbonIcon("tags", title.tags, () => this.openTags()),
       entry: this.addRibbonIcon("pencil", title.entry, () => this.newEntry()),
     };
     this.applyNames();
     this.addCommand({ id: "tree", name: "Open tree", callback: () => this.openTree() });
     this.addCommand({ id: "calendar", name: "Open calendar", callback: () => this.openCalendar() });
+    this.addCommand({ id: "tags", name: "Open tags", callback: () => this.openTags() });
     this.addCommand({ id: "new-entry", name: "New entry", callback: () => this.newEntry() });
     this.addCommand({ id: "open-today", name: "Open today", callback: () => this.openToday() });
     this.addCommand({ id: "show-all", name: "Show all entries", callback: () => this.showAll() });
@@ -237,6 +241,25 @@ export default class OrgJournalPlugin extends Plugin {
     unfoldAll(cm);
     cm.dispatch({ effects: [hideEffect(cm).of(ranges)] });
     cm.dispatch({ scrollIntoView: true });
+    this.hiddenBar(cm, true);
+  }
+
+  /**
+   * Show or remove the "Show all entries" button floating over a journal view that has hidden
+   * entries, so there is always a visible way back to the whole journal.
+   * @param {import("@codemirror/view").EditorView} cm the journal's editor
+   * @param {boolean} on true to show the button, false to remove it
+   * @returns {void}
+   */
+  hiddenBar(cm, on) {
+    const leaf = this.app.workspace.getLeavesOfType(ORG_VIEW).find((l) => l.view.codeMirror === cm);
+    if (!leaf) return;
+    const host = leaf.view.contentEl;
+    host.querySelectorAll(".org-journal-hidden-bar").forEach((el) => el.remove());
+    if (!on) return;
+    const bar = host.createDiv({ cls: "org-journal-hidden-bar" });
+    bar.createSpan({ text: "Other entries are hidden" });
+    bar.createEl("button", { text: "Show all entries" }).onclick = () => this.showAll();
   }
 
   /**
@@ -244,10 +267,12 @@ export default class OrgJournalPlugin extends Plugin {
    * @returns {void}
    */
   showAll() {
-    const leaf = this.app.workspace.getLeavesOfType(ORG_VIEW)[0];
-    const cm = leaf && leaf.view.codeMirror;
-    if (!cm) { new Notice("Open the journal first."); return; }
-    cm.dispatch({ effects: [hideEffect(cm).of([])] });
+    const cms = this.app.workspace.getLeavesOfType(ORG_VIEW).map((l) => l.view.codeMirror).filter(Boolean);
+    if (!cms.length) { new Notice("Open the journal first."); return; }
+    for (const cm of cms) {
+      cm.dispatch({ effects: [hideEffect(cm).of([])] });
+      this.hiddenBar(cm, false);
+    }
   }
 
   /**
@@ -305,6 +330,14 @@ export default class OrgJournalPlugin extends Plugin {
    */
   async openCalendar() {
     await this.openInSidebar(CAL_VIEW, "right");
+  }
+
+  /**
+   * Show the tag filter in the right sidebar, creating it if needed.
+   * @returns {Promise<void>}
+   */
+  async openTags() {
+    await this.openInSidebar(TAGS_VIEW, "right");
   }
 
   /**

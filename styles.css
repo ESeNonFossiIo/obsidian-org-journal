@@ -217,3 +217,88 @@
   color: var(--text-muted);
   padding: var(--size-4-2);
 }
+
+/* ------------------------------------------------------------ tag filter */
+.org-journal-tags-empty {
+  color: var(--text-muted);
+  padding: var(--size-4-2);
+}
+.org-journal-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.org-journal-tags-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  height: auto;
+  min-height: 24px;
+  border-radius: 999px;
+  box-shadow: none;
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+.org-journal-tags-chip.is-selected {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.org-journal-tags-count {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+.org-journal-tags-chip.is-selected .org-journal-tags-count {
+  color: var(--text-on-accent);
+}
+.org-journal-tags-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: var(--size-4-3) 0 var(--size-4-2);
+  padding-top: var(--size-4-2);
+  border-top: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.org-journal-tags-entry {
+  padding: var(--size-4-1) var(--size-4-2);
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+.org-journal-tags-entry:hover {
+  background: var(--background-modifier-hover);
+}
+.org-journal-tags-date {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+.org-journal-tags-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.org-journal-tags-entry-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* floating button that brings back the entries hidden after "New entry" */
+.org-journal-hidden-bar {
+  position: absolute;
+  top: var(--size-4-2);
+  right: var(--size-4-6);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-4-1) var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  box-shadow: var(--shadow-s);
+}

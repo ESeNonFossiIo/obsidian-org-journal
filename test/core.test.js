@@ -143,3 +143,18 @@ test("redundantDatePrefix: hides the repeated year/month on month and day headin
   assert.deepEqual(["* 2026", "**** 23:02 Title", "** Notes", "*** misc", "#+TITLE: x", "text"].map(redundantDatePrefix),
     [null, null, null, null, null, null]);
 });
+
+import { tagCounts, filterByTags } from "../src/core.js";
+
+test("tagCounts and filterByTags", () => {
+  const es = [
+    { line: 1, day: "2026-10-01", heading: "a", tags: ["work", "idea"], body: [] },
+    { line: 2, day: "2026-10-02", heading: "b", tags: ["work"], body: [] },
+    { line: 3, day: "2026-10-03", heading: "c", tags: [], body: [] },
+  ];
+  assert.deepEqual(tagCounts(es), [["work", 2], ["idea", 1]]);
+  assert.deepEqual(filterByTags(es, ["work"]).map((e) => e.line), [1, 2]);
+  assert.deepEqual(filterByTags(es, ["work", "idea"]).map((e) => e.line), [1]);
+  assert.deepEqual(filterByTags(es, []).length, 3);
+  assert.deepEqual(filterByTags(es, ["nope"]), []);
+});
