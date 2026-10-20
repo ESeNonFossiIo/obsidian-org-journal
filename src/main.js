@@ -9,8 +9,8 @@
  *   **** 23:02 Title                                         :tag1:tag2:
  *   Free-form text...
  *
- * Works alongside the `orgmode-cm6' plugin, which provides the `.org` editor
- * view (view type "orgmode", whose `codeMirror` property is the CodeMirror
+ * Works alongside the Org Reader plugin, which provides the `.org` editor
+ * view (view type "org-reader", whose `codeMirror` property is the CodeMirror
  * EditorView). If the journal is open in that view, edits go through its
  * CodeMirror so nothing is clobbered by a background file write; otherwise the
  * file is changed through the vault. No Node APIs, so it runs on mobile too.
@@ -40,11 +40,14 @@ import { DEFAULTS } from "./settings-defaults.js";
  * What `openJournal()` returns and most methods below take as `ctx`.
  * @typedef {Object} JournalContext
  * @property {import("obsidian").TFile} file the journal file
- * @property {import("@codemirror/view").EditorView} [cm] orgmode-cm6's editor, if the
+ * @property {import("@codemirror/view").EditorView} [cm] Org Reader's editor, if the
  *   file is open in that view
  */
 
 /** @typedef {import("./core.js").Entry} Entry */
+
+/** View type of Org Reader's `.org` view. */
+const ORG_VIEW = "org-reader";
 
 export default class OrgJournalPlugin extends Plugin {
   /**
@@ -73,13 +76,13 @@ export default class OrgJournalPlugin extends Plugin {
   }
 
   /**
-   * Whether the orgmode-cm6 plugin (which provides the .org editor view) is enabled.
+   * Whether the Org Reader plugin (which provides the .org editor view) is enabled.
    * Assumes yes if Obsidian's internal plugin list is not available.
    * @returns {boolean}
    */
-  hasOrgmode() {
+  hasOrgReader() {
     const p = this.app.plugins;
-    return !p || !p.enabledPlugins || p.enabledPlugins.has("orgmode-cm6");
+    return !p || !p.enabledPlugins || p.enabledPlugins.has("org-reader");
   }
 
   /**
@@ -110,8 +113,8 @@ export default class OrgJournalPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("active-leaf-change", restyle));
     this.registerEvent(this.app.workspace.on("layout-change", restyle));
     this.app.workspace.onLayoutReady(() => {
-      if (!this.hasOrgmode()) {
-        new Notice("Org Journal needs the Orgmode (cm6) community plugin. Install and enable it, then reload.", 10000);
+      if (!this.hasOrgReader()) {
+        new Notice("Org Journal needs the Org Reader community plugin. Install and enable it, then reload.", 10000);
       }
       restyle();
     });
@@ -137,15 +140,14 @@ export default class OrgJournalPlugin extends Plugin {
   }
 
   /**
-   * Turn the journal look on for open journal views and off for the rest. orgmode-cm6
-   * rebuilds the editor state when it loads a file, which drops our extension, so this
-   * re-installs it whenever it is missing.
+   * Turn the journal look on for open journal views and off for the rest. The extension is
+   * re-installed whenever it is missing (e.g. after the editor was recreated).
    * @param {boolean} [unload=false] remove the look from every view (used on unload)
    * @returns {void}
    */
   styleLeaves(unload = false) {
     const path = normalizePath(this.settings.file);
-    for (const leaf of this.app.workspace.getLeavesOfType("orgmode")) {
+    for (const leaf of this.app.workspace.getLeavesOfType(ORG_VIEW)) {
       const view = leaf.view;
       const on = !unload && this.settings.styleJournal && view.file && view.file.path === path;
       view.contentEl.toggleClass("org-journal-styled", !!on);
@@ -159,12 +161,12 @@ export default class OrgJournalPlugin extends Plugin {
 
   /**
    * Open the journal in a leaf, reusing one that already shows it.
-   * @returns {Promise<?JournalContext>} null (after a notice) if orgmode-cm6 is missing or
+   * @returns {Promise<?JournalContext>} null (after a notice) if Org Reader is missing or
    *   the journal file does not exist
    */
   async openJournal() {
-    if (!this.hasOrgmode()) {
-      new Notice("Org Journal needs the Orgmode (cm6) community plugin to open .org files.");
+    if (!this.hasOrgReader()) {
+      new Notice("Org Journal needs the Org Reader community plugin to open .org files.");
       return null;
     }
     const file = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.file));
@@ -173,9 +175,11 @@ export default class OrgJournalPlugin extends Plugin {
       return null;
     }
     const ws = this.app.workspace;
-    let leaf = ws.getLeavesOfType("orgmode").find((l) => l.view.file && l.view.file.path === file.path);
+    let leaf = ws.getLeavesOfType(ORG_VIEW).find((l) => l.view.file && l.view.file.path === file.path);
     if (leaf) await ws.revealLeaf(leaf);
     else { leaf = ws.getLeaf(false); await leaf.openFile(file); }
+    // the journal look and the editing commands live in the editor, not in the reading view
+    if (leaf.view && leaf.view.readerMode === "read") leaf.view.setReaderMode("edit");
     return { file, cm: leaf.view && leaf.view.codeMirror };
   }
 
@@ -217,7 +221,7 @@ export default class OrgJournalPlugin extends Plugin {
   }
 
   /**
-   * Hide everything except the path to an entry (orgmode-cm6 view only).
+   * Hide everything except the path to an entry (editing mode only).
    * @param {JournalContext} ctx
    * @param {number} line 0-based line of the entry heading to keep visible
    * @returns {void}
@@ -240,7 +244,7 @@ export default class OrgJournalPlugin extends Plugin {
    * @returns {void}
    */
   showAll() {
-    const leaf = this.app.workspace.getLeavesOfType("orgmode")[0];
+    const leaf = this.app.workspace.getLeavesOfType(ORG_VIEW)[0];
     const cm = leaf && leaf.view.codeMirror;
     if (!cm) { new Notice("Open the journal first."); return; }
     cm.dispatch({ effects: [hideEffect(cm).of([])] });
@@ -318,9 +322,9 @@ export default class OrgJournalPlugin extends Plugin {
   async journalText() {
     const file = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.file));
     if (!(file instanceof TFile)) return null;
-    const open = this.app.workspace.getLeavesOfType("orgmode")
+    const open = this.app.workspace.getLeavesOfType(ORG_VIEW)
       .find((l) => l.view.file && l.view.file.path === file.path);
-    // The editor's doc is empty until orgmode-cm6 has loaded the file (e.g.
+    // The editor's doc is empty until Org Reader has loaded the file (e.g.
     // right after startup), so only trust it when it has content.
     const live = open && open.view.codeMirror && open.view.codeMirror.state.doc.toString();
     return live || this.app.vault.cachedRead(file);

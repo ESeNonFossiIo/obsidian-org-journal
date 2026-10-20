@@ -1,4 +1,4 @@
-// The "journal look", installed into the orgmode-cm6 editor of the journal file:
+// The "journal look", installed into the Org Reader editor of the journal file:
 //  - stylePlugin: view plugin adding line/mark/replace decorations (heading levels,
 //    entry bodies, time badge, tag pills, hidden stars); CSS is in styles.css
 //  - preambleField: state field hiding the #+ lines before the first heading

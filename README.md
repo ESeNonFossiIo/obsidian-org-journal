@@ -3,13 +3,15 @@
 [![CI](https://github.com/ESeNonFossiIo/obsidian-org-journal/actions/workflows/ci.yml/badge.svg)](https://github.com/ESeNonFossiIo/obsidian-org-journal/actions/workflows/ci.yml)
 
 Obsidian plugin for a date-tree journal kept in a single Org file. Works
-alongside [orgmode-cm6](https://github.com/bbazard/obsidian-orgmode-cm6),
+alongside [Org Reader](https://github.com/ESeNonFossiIo/obsidian-org-reader),
 which provides the `.org` editor view.
 
-> **Requires [Orgmode (cm6)](https://github.com/bbazard/obsidian-orgmode-cm6).**
+> **Requires [Org Reader](https://github.com/ESeNonFossiIo/obsidian-org-reader).**
 > Obsidian can't declare plugin dependencies, so install and enable it yourself
-> (Settings → Community plugins). Without it Org Journal shows a notice on startup
-> and its commands can't open the journal.
+> (Settings → Community plugins, or with BRAT). Without it Org Journal shows a notice
+> on startup and its commands can't open the journal. Org Reader replaces
+> Orgmode (cm6), so disable that one: only one plugin can handle `.org` files.
+> Org Journal opens the journal in Org Reader's editing mode.
 
 File layout (same as the Emacs `file+olp+datetree` capture template):
 

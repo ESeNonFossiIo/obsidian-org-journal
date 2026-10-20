@@ -55,7 +55,7 @@
 
 /* ---------------------------------------------------------------- journal look
    Everything below is scoped to .org-journal-styled, which the plugin puts on
-   the journal file's view only. Selectors are more specific than orgmode-cm6's
+   the journal file's view only. Selectors are more specific than Org Reader's
    own colours so they win regardless of stylesheet order. */
 
 /* Reading comfort: centred column, relaxed leading. */
@@ -129,7 +129,7 @@
 }
 
 /* Time badge. */
-/* The longer selectors (via .cm-content .cm-line) outrank orgmode-cm6's theme rules,
+/* The longer selectors (via .cm-content .cm-line) outrank Org Reader's theme rules,
    so the rules below don't need to force themselves. */
 .org-journal-styled .cm-content .cm-line .oj-time,
 .org-journal-styled .cm-content .cm-line .oj-time * {
