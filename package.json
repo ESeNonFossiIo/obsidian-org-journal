@@ -7,7 +7,10 @@
   "scripts": {
     "build": "node esbuild.config.mjs",
     "dev": "node esbuild.config.mjs --watch",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "preversion": "git fetch -q origin && test \"$(git rev-parse HEAD)\" = \"$(git rev-parse origin/master)\" && npm test",
+    "version": "node -e \"const fs=require('fs'),v=process.env.npm_package_version,m=JSON.parse(fs.readFileSync('manifest.json')),w=JSON.parse(fs.readFileSync('versions.json'));m.version=v;w[v]=m.minAppVersion;fs.writeFileSync('manifest.json',JSON.stringify(m,null,2)+'\\n');fs.writeFileSync('versions.json',JSON.stringify(w,null,2)+'\\n')\" && git add manifest.json versions.json",
+    "postversion": "git push origin HEAD \"$npm_package_version\""
   },
   "devDependencies": {
     "@codemirror/state": "^6.7.6",
