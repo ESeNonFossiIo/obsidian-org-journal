@@ -129,16 +129,21 @@
 }
 
 /* Time badge. */
-.org-journal-styled .oj-time {
+/* The longer selectors (via .cm-content .cm-line) outrank orgmode-cm6's theme rules,
+   so the rules below don't need to force themselves. */
+.org-journal-styled .cm-content .cm-line .oj-time,
+.org-journal-styled .cm-content .cm-line .oj-time * {
+  color: var(--text-muted);
+  font-weight: var(--font-normal);
+}
+.org-journal-styled .cm-content .cm-line .oj-time {
   display: inline-block;
   margin-right: 0.35em;
   padding: 0 0.5em;
   border-radius: var(--radius-s);
   background: var(--background-modifier-hover);
-  color: var(--text-muted) !important;
   font-family: var(--font-monospace);
-  font-size: 0.85em !important;
-  font-weight: var(--font-normal) !important;
+  font-size: 0.85em;
 }
 
 /* Tag pills (colons and alignment padding are hidden by the plugin). */
@@ -146,10 +151,10 @@
   display: inline-block;
   width: 0.8em;
 }
-.org-journal-styled .oj-tag,
-.org-journal-styled .oj-tag * {
-  color: var(--text-on-accent) !important;
-  font-weight: var(--font-normal) !important;
+.org-journal-styled .cm-content .cm-line .oj-tag,
+.org-journal-styled .cm-content .cm-line .oj-tag * {
+  color: var(--text-on-accent);
+  font-weight: var(--font-normal);
 }
 .org-journal-styled .oj-tag {
   display: inline-block;
