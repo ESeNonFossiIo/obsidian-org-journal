@@ -6,7 +6,7 @@
 // `.org-journal-styled` container, which main.js sets on the journal's view.
 import { ViewPlugin, Decoration, WidgetType, EditorView } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
-import { lineKind, entryHeadingParts, starsLength, firstHeadingLine } from "./core.js";
+import { lineKind, entryHeadingParts, starsLength, firstHeadingLine, redundantDatePrefix } from "./core.js";
 
 /** Dispatch this to make the style plugin rebuild its decorations. */
 export const refreshStyle = StateEffect.define();
@@ -53,8 +53,8 @@ function build(view) {
 /**
  * Decorations that restyle the journal: a class per heading level, entry bodies, dimmed
  * #+ lines, the time as a badge and tags as pills (with the alignment padding and colons
- * hidden unless the cursor is on that line). The leading stars are hidden on every heading
- * except the one being edited. Only active inside a `.org-journal-styled` container.
+ * hidden unless the cursor is on that line). The leading stars, and the year/month that a
+ * month or day heading repeats, are hidden on every heading except the one being edited. Only active inside a `.org-journal-styled` container.
  * Rebuilt on every document or selection change, which is cheap for journal-sized files.
  * @param {{state: import("@codemirror/state").EditorState, dom: HTMLElement}} view the
  *   EditorView (only `state` and `dom` are used)
@@ -77,6 +77,8 @@ export function buildDecorations(view) {
     const active = selection.ranges.some((r) => r.from <= l.to && r.to >= l.from);
     const stars = starsLength(l.text);   // 0 for "#+" meta lines
     if (!active && stars) out.push(Decoration.replace({}).range(l.from, l.from + stars));
+    const date = active ? null : redundantDatePrefix(l.text);
+    if (date) out.push(Decoration.replace({}).range(l.from + date.from, l.from + date.to));
     if (kind !== "entry") continue;
     const p = entryHeadingParts(l.text);
     if (!p) continue;

@@ -122,7 +122,7 @@ test("buildTree: empty and header-only files", () => {
   assert.deepEqual(buildTree("#+TITLE: x\n"), []);
 });
 
-import { starsLength } from "../src/core.js";
+import { starsLength, redundantDatePrefix } from "../src/core.js";
 
 test("starsLength: headings only, never crashes on #+ or text lines", () => {
   assert.deepEqual(["* a", "**** b", "#+TITLE: x", "plain", "", "***no space"].map(starsLength), [2, 5, 0, 0, 0, 0]);
@@ -133,4 +133,13 @@ test("firstHeadingLine", () => {
   assert.equal(firstHeadingLine("#+TITLE: x\n#+STARTUP: y\n* 2026\n"), 2);
   assert.equal(firstHeadingLine("* a"), 0);
   assert.equal(firstHeadingLine("no headings"), -1);
+});
+
+test("redundantDatePrefix: hides the repeated year/month on month and day headings only", () => {
+  const cut = (t) => { const r = redundantDatePrefix(t); return r && t.slice(r.to); };
+  assert.equal(cut("** 2026-08 August"), "August");
+  assert.equal(cut("*** 2026-08-29 Saturday"), "29 Saturday");
+  assert.equal(cut("*** 2026-08-29"), "29");
+  assert.deepEqual(["* 2026", "**** 23:02 Title", "** Notes", "*** misc", "#+TITLE: x", "text"].map(redundantDatePrefix),
+    [null, null, null, null, null, null]);
 });

@@ -409,6 +409,21 @@ export function starsLength(text) {
 }
 
 /**
+ * Length of the date prefix of a month or day heading that repeats what the headings above
+ * already say: `YYYY-MM ` in `** 2026-08 August`, `YYYY-MM-` in `*** 2026-08-29 Saturday`.
+ * @param {string} text one line
+ * @returns {{from: number, to: number}|null} offsets within the line; null if there is
+ *   nothing redundant to hide (other levels, or a heading that is not date-shaped)
+ */
+export function redundantDatePrefix(text) {
+  const kind = lineKind(text);
+  const stars = starsLength(text);
+  if (kind === "month" && /^\d{4}-\d{2} \S/.test(text.slice(stars))) return { from: stars, to: stars + 8 };
+  if (kind === "day" && /^\d{4}-\d{2}-\d{2}(\s|$)/.test(text.slice(stars))) return { from: stars, to: stars + 8 };
+  return null;
+}
+
+/**
  * Where the preamble (everything before the first heading) ends.
  * @param {string} text the whole journal
  * @returns {number} 0-based line of the first heading, or -1 if there is none
